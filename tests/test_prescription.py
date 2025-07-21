@@ -2,6 +2,8 @@ import unittest
 from unittest.mock import MagicMock, patch
 from app.prescription import Prescription
 from datetime import datetime
+from bson import ObjectId
+
 
 
 class TestPrescription(unittest.TestCase):
@@ -77,3 +79,67 @@ class TestPrescription(unittest.TestCase):
 
         result = self.prescription.mark_medicine_taken("abc123", 0)
         self.assertFalse(result)  # Already marked as taken
+
+    def test_delete_prescription_success(self):
+        """
+        Test successful deletion of a prescription and removal of its scheduled jobs.
+        """
+        prescription_id = "64d2fbb1547fbc38b94c76aa"
+
+        # Mock the collection delete response
+        self.mock_pres_collection.delete_one.return_value.deleted_count = 1
+
+        # Mock scheduler jobs
+        mock_job1 = MagicMock()
+        mock_job1.id = f"reminder_{prescription_id}_Med1_morning"
+
+        mock_job2 = MagicMock()
+        mock_job2.id = f"reminder_{prescription_id}_Med1_evening"
+
+        self.mock_scheduler.get_jobs.return_value = [mock_job1, mock_job2]
+
+        result = self.prescription.delete_prescription(prescription_id)
+        self.assertTrue(result)
+
+        # Ensure delete_one was called
+        self.mock_pres_collection.delete_one.assert_called_once_with(
+            {"_id": ObjectId(prescription_id)})
+
+        # Ensure both jobs were removed
+        mock_job1.remove.assert_called_once()
+        mock_job2.remove.assert_called_once()
+
+    def test_delete_prescription_not_found(self):
+        """
+        Test deleting a prescription that does not exist (delete_one returns 0).
+        Should return False and not attempt job removal.
+        """
+        prescription_id = "64d2fbb1547fbc38b94c76aa"
+        self.mock_pres_collection.delete_one.return_value.deleted_count = 0
+
+        result = self.prescription.delete_prescription(prescription_id)
+        self.assertFalse(result)
+
+        # Confirm deletion was attempted
+        self.mock_pres_collection.delete_one.assert_called_once()
+
+    def test_remove_scheduled_jobs_only_matching(self):
+        """
+        Test _remove_scheduled_jobs only removes jobs that match the prescription_id prefix.
+        """
+        prescription_id = "64d2fbb1547fbc38b94c76aa"
+
+        # Jobs with mixed IDs
+        matching_job = MagicMock()
+        matching_job.id = f"reminder_{prescription_id}_Med1_night"
+
+        non_matching_job = MagicMock()
+        non_matching_job.id = f"reminder_otherid_Med2_morning"
+
+        self.mock_scheduler.get_jobs.return_value = [matching_job, non_matching_job]
+
+        self.prescription._remove_scheduled_jobs(prescription_id)
+
+        # Only the matching job should be removed
+        matching_job.remove.assert_called_once()
+        non_matching_job.remove.assert_not_called()

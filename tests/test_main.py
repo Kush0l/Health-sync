@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, mock_open, MagicMock
 from datetime import datetime
 from main import HealthTracker
 
@@ -64,3 +64,118 @@ class TestHealthTracker(unittest.TestCase):
         with patch("builtins.print") as mock_print:
             tracker.display_prescriptions(sample_prescription)
             mock_print.assert_any_call("\nDoctor's Notes: Take with food.")
+
+    @patch('main.User')  # Patch the User class used in delete_prescription
+    @patch('builtins.input', side_effect=[
+        "patient@example.com",  # patient email
+        "1",                    # prescription number
+        "y"                     # confirm deletion
+    ])
+    def test_delete_prescription_success(self, mock_input, mock_user_class):
+        tracker = HealthTracker()
+
+        # Set up mock user manager
+        mock_user_manager = MagicMock()
+        mock_user_class.return_value = mock_user_manager  # User(db) will return this
+
+        # Mock patient found
+        mock_user_manager.collection.find_one.return_value = {
+            "_id": "patient123",
+            "email": "patient@example.com",
+            "role": "patient"
+        }
+
+        # Mock prescriptions
+        sample_prescription = [{
+            "_id": "presc456",
+            "created_at": MagicMock(strftime=lambda x: "2025-07-21"),
+            "notes": "Test notes",
+            "medicines": [{
+                "name": "Medicine A",
+                "dosage": "100mg",
+                "frequency": "Once a day",
+                "time": "morning",
+                "taken_today": False,
+                "total_taken": 2,
+                "last_taken": None
+            }]
+        }]
+
+        # Mock Prescription methods
+        mock_prescription = MagicMock()
+        mock_prescription.get_for_patient.return_value = sample_prescription
+        mock_prescription.delete_prescription.return_value = True
+
+        tracker.prescription = mock_prescription
+
+        # Patch display to avoid print clutter
+        with patch.object(tracker, 'display_prescriptions'):
+            tracker.delete_prescription("doctor123")
+
+        # Assert the mock was used
+        mock_user_manager.collection.find_one.assert_called_once_with(
+            {"email": "patient@example.com", "role": "patient"}
+        )
+        mock_prescription.get_for_patient.assert_called_once_with("patient123")
+        mock_prescription.delete_prescription.assert_called_once_with("presc456")
+
+
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("builtins.print")
+    def test_save_prescriptions_success(self, mock_print, mock_file):
+        # Sample user and prescription
+        user = {"name": "John Doe"}
+        prescriptions = [{
+            "created_at": datetime(2025, 7, 21),
+            "notes": "Take with meals.",
+            "medicines": [{
+                "name": "Paracetamol",
+                "dosage": "500mg",
+                "frequency": "Twice a day",
+                "time": "morning"
+            }]
+        }]
+
+        tracker = HealthTracker()
+        tracker.save_prescriptions(prescriptions, user)
+
+        # File should be opened with expected filename
+        mock_file.assert_called_once_with("prescriptions/John Doe.txt", "w")
+
+        # Check if print() was called with the table
+        self.assertTrue(mock_print.called)
+        mock_print.assert_any_call(
+            "\nprinted the prescription in 'prescriptions/John Doe.txt'"
+        )
+
+    @patch.object(HealthTracker, 'save_prescriptions')
+    def test_printPriscription_calls_save_prescriptions(self, mock_save_prescriptions):
+        # Set up mock user and tracker
+        user = {"_id": "user123", "name": "John Doe"}
+        tracker = HealthTracker()
+
+        # Mock prescription fetching
+        sample_prescriptions = [{
+            "created_at": datetime(2025, 7, 21),
+            "notes": "Test Note",
+            "medicines": [{
+                "name": "Med A",
+                "dosage": "10mg",
+                "frequency": "Once",
+                "time": "night"
+            }]
+        }]
+        tracker.prescription.get_for_patient = MagicMock(
+            return_value=sample_prescriptions)
+
+        tracker.printPriscription(user)
+
+        # Assert the method is called with expected data
+        mock_save_prescriptions.assert_called_once_with(
+            sample_prescriptions, user
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
+
