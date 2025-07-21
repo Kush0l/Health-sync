@@ -294,3 +294,23 @@ class Prescription:
         except Exception as e:
             print(f"Error getting health analysis: {e}")
             return "Could not generate analysis"
+
+    def delete_prescription(self, prescription_id):
+        try:
+            result = self.collection.delete_one({"_id": ObjectId(prescription_id)})
+            if result.deleted_count == 1:
+                self._remove_scheduled_jobs(prescription_id)
+                return True
+            return False
+        except Exception as e:
+            print(f"Error deleting prescription: {e}")
+            return False
+        
+    def _remove_scheduled_jobs(self, prescription_id):
+        try:
+            jobs = self.scheduler.get_jobs()
+            for job in jobs:
+                if job.id.startswith(f"reminder_{prescription_id}"):
+                    job.remove()
+        except Exception as e:
+            print(f"Error removing scheduled jobs: {e}")
