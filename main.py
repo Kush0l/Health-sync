@@ -4,14 +4,13 @@ from app.database import Database
 from app.user import User
 from app.prescription import Prescription
 
+
 class HealthTracker:
     def __init__(self):
         self.db = Database()
         self.user = User(self.db)
         self.prescription = Prescription(self.db)
 
-
-# this displays the prescriptions
     def display_prescriptions(self, prescriptions):
         if not prescriptions:
             print("\nNo prescriptions found!")
@@ -42,8 +41,6 @@ class HealthTracker:
             print(f"\nDoctor's Notes: {pres['notes']}")
             print(table)
 
-
-# this shows medication history that user has taken
     def view_medication_history(self, user):
         history = self.prescription.get_medication_history(str(user["_id"]))
 
@@ -65,9 +62,6 @@ class HealthTracker:
 
         print(f"\nTotal medications taken: {len(history)}")
         print(table)
-
-
-
 
     def view_patient_records(self, user):
         records = self.prescription.get_patient_records(str(user["_id"]))
@@ -95,6 +89,53 @@ class HealthTracker:
                 ])
 
             print(table)
+
+    def delete_prescription(self, doctor_id):
+        """Handle prescription deletion flow"""
+        patient_email = input("Enter patient email: ").strip().lower()
+
+        # Find patient
+        db = Database()
+        user_manager = User(db)
+        patient = user_manager.collection.find_one(
+            {"email": patient_email, "role": "patient"})
+
+        if not patient:
+            print("Patient not found!")
+            return
+
+        # Get prescriptions
+        prescriptions = self.prescription.get_for_patient(str(patient["_id"]))
+        if not prescriptions:
+            print("\nNo prescriptions found for this patient!")
+            return
+
+        # Display prescriptions
+        self.display_prescriptions(prescriptions)
+
+        try:
+            pres_num = int(
+                input("\nEnter prescription number to delete: ")) - 1
+            if pres_num < 0 or pres_num >= len(prescriptions):
+                print("Invalid prescription number!")
+                return
+
+            prescription = prescriptions[pres_num]
+            confirm = input(
+                f"\nAre you sure you want to delete prescription from {prescription['created_at'].strftime('%Y-%m-%d')}? (y/n): ").lower()
+            if confirm != 'y':
+                print("Deletion cancelled.")
+                return
+
+            if self.prescription.delete_prescription(str(prescription["_id"])):
+                print("\nPrescription deleted successfully!")
+            else:
+                print("\nFailed to delete prescription!")
+
+        except ValueError:
+            print("\nPlease enter a valid number!")
+        except Exception as e:
+            print(f"\nAn error occurred: {e}")
 
     def run(self):
         print("\n" + "="*50)
@@ -134,7 +175,8 @@ class HealthTracker:
             print("2. View Patient Records")
             print("3. View Patient Medication History")
             print("4. Get Patient Health Analysis")
-            print("5. Logout")
+            print("5. Delete Prescription")
+            print("6. Logout")
 
             choice = input("\nChoose option: ").strip()
 
@@ -159,9 +201,13 @@ class HealthTracker:
                 print("\n=== HEALTH ANALYSIS ===")
                 print(analysis)
                 print("=" * 30)
+
             elif choice == "5":
+                self.delete_prescription(str(user["_id"]))
+            elif choice == "6":
                 print("\nLogging out...")
                 break
+
             else:
                 print("Invalid choice!")
 
@@ -236,6 +282,7 @@ class HealthTracker:
             print("\nPlease enter valid numbers!")
         except Exception as e:
             print(f"\nAn error occurred: {e}")
+
 
 if __name__ == "__main__":
     try:
