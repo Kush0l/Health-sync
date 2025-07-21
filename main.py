@@ -46,11 +46,12 @@ class HealthTracker:
             print("\nNo prescriptions found!")
             return
         try:
-            with open(f"prescriptions/{user["name"]}.txt", "w") as file:
+            with open(f"prescriptions/{user['name']}.txt", "w") as file:
                 for i, pres in enumerate(prescriptions):
                     table = PrettyTable()
                     table.title = f"Prescription {i+1} (Created: {pres['created_at'].strftime('%Y-%m-%d')})"
-                    table.field_names = ["#", "Medicine", "Dosage", "Frequency", "Time"]
+                    table.field_names = ["#", "Medicine",
+                                         "Dosage", "Frequency", "Time"]
 
                     for j, med in enumerate(pres["medicines"]):
                         table.add_row([
@@ -68,9 +69,9 @@ class HealthTracker:
             return e
         except FileNotFoundError as e:
             print(e)
-        else: 
-            print(f"\nprinted the prescription in prescriptiion.txt")
-            
+        else:
+            print(
+                f"\nprinted the prescription in 'prescriptions/{user['name']}.txt'")
 
     def view_medication_history(self, user):
         history = self.prescription.get_medication_history(str(user["_id"]))
@@ -251,7 +252,7 @@ class HealthTracker:
             print("3. View My Medication History")
             print("4. Update Health Summary")
             print("5. Print Prescription")
-            print("5. Logout")
+            print("6. Logout")
 
             choice = input("\nChoose option: ").strip()
 
@@ -265,7 +266,7 @@ class HealthTracker:
                 self.user.update_health_summary(str(user["_id"]))
             elif choice == "5":
                 self.printPriscription(user)
-            elif choice == "5":
+            elif choice == "6":
                 print("\nLogging out...")
                 break
             else:
@@ -317,11 +318,9 @@ class HealthTracker:
         except Exception as e:
             print(f"\nAn error occurred: {e}")
 
-       
     def printPriscription(self, user):
         prescriptions = self.prescription.get_for_patient(str(user["_id"]))
         self.save_prescriptions(prescriptions, user)
-
 
 
 if __name__ == "__main__":
